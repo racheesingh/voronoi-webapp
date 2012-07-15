@@ -192,11 +192,26 @@ def show_entries():
 
 @app.route('/add', methods=['POST'])
 def add_entry():
-
+    import pygeoip
     if not session.get('logged_in'):
         abort(401)
-    g.db.execute('insert into servers (serverName, serverAdd) values (?, ?)',
-                 [request.form['serverName'], request.form['serverAdd']])
+    reqServerName = request.form[ 'serverName' ]
+    reqServerURL = request.form[ 'serverAdd' ]
+    gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
+                        pygeoip.STANDARD )
+    import socket
+    try:
+        gir = gi.record_by_name( reqServerURL )
+    except socket.gaierror:
+        pass
+    except pygeoip.GeoIPError:
+        pass
+    if gir != None:
+            return redirect(url_for('show_entries'))
+    print gir
+    reqServerLon = gir[ 'longitude' ]
+    reqServerLat = gir[ 'lattitude' ]
+    g.db.execute('insert into servers (serverName, serverAdd, lon, lat) values (?, ?)', [reqServerName, reqServerURL, reqServerLon, reqServerLat])
     g.db.commit()
     flash('New server was successfully added')
     return redirect(url_for('show_entries'))
