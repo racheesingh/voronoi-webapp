@@ -117,7 +117,7 @@ def voronoi():
 
     # Many server sites map to the same latitude and longitudes
     # Lets merge the duplicates
-    PointsMap = mergeDuplicates( PointsMap )
+    #PointsMap = mergeDuplicates( PointsMap )
 
     # Method provided by py_geo_voronoi, returns a dictionary
     # of dictionaries, each sub-dictionary carrying information 
@@ -200,18 +200,21 @@ def add_entry():
     gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
                         pygeoip.STANDARD )
     import socket
+    gir = None
     try:
         gir = gi.record_by_name( reqServerURL )
     except socket.gaierror:
         pass
     except pygeoip.GeoIPError:
         pass
-    if gir != None:
+    if gir == None:
             return redirect(url_for('show_entries'))
+    print reqServerURL, reqServerName
+
     print gir
     reqServerLon = gir[ 'longitude' ]
-    reqServerLat = gir[ 'lattitude' ]
-    g.db.execute('insert into servers (serverName, serverAdd, lon, lat) values (?, ?)', [reqServerName, reqServerURL, reqServerLon, reqServerLat])
+    reqServerLat = gir[ 'latitude' ]
+    g.db.execute('insert into servers (serverName, serverAdd, lon, lat) values (?, ?, ?, ?)', [reqServerName, reqServerURL, reqServerLon, reqServerLat])
     g.db.commit()
     flash('New server was successfully added')
     return redirect(url_for('show_entries'))
