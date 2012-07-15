@@ -1,5 +1,6 @@
-from flask import Flask, render_template
-from flask import request, redirect, url_for, send_from_directory
+from flask import Flask, render_template, flash, g, redirect, session
+from flask import request, redirect, url_for, send_from_directory, abort
+from contextlib import closing
 import os
 import numpy as np
 import pygeoip
@@ -12,11 +13,43 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.nxutils as nx
 
+import sqlite3
+
+# configuration
+DATABASE = '/tmp/serverlist.db'
+DEBUG = True
+SECRET_KEY = 'development key'
+USERNAME = 'admin'
+PASSWORD = 'default'
 
 CWD = os.getcwd()
 
 app = Flask(__name__)
+app.config.from_object(__name__)
 
+def connect_db():
+    return sqlite3.connect(app.config['DATABASE'])
+
+def init_db():
+    with closing(connect_db()) as db:
+        with app.open_resource('schema.sql') as f:
+            db.cursor().executescript(f.read())
+        db.commit()
+        f = open( "geolist_new", "r" )
+        for line in f.readlines():
+            info = line.split()
+            db.execute('insert into servers (serverName, lon, lat) values (?, ?, ?)', [info[0], info[1], info[2]])
+            db.commit()
+
+init_db()
+
+@app.before_request
+def before_request():
+    g.db = connect_db()
+
+@app.teardown_request
+def teardown_request(exception):
+    g.db.close()
 
 def mergeDuplicates( PointsMap ):
 
@@ -44,30 +77,18 @@ def mergeDuplicates( PointsMap ):
     return uniquePointsMap
 
 
-def readGeolistFromFile():
+def readGeolistFromDatabase():
     PointsMap={}
     lat = []
     lon = []
     # List of all server names
     serverName = []
 
-    file = open( "geolist_location", "r" )
-
-    for line in file.readlines():
-        data = line.strip().split( " " )
-        
-        try:
-            # Pygeoip could not find the location of the server
-            if data[ 1 ] == 'Not':
-                continue
-            lat.append( float( data[ 1 ] ) )
-            lon.append( float( data[ 2 ] ) )
-            serverName.append( data[ 0 ] )
-            PointsMap[ data[ 0 ] ]=( float( data[ 2 ] ), float( data[ 1 ] ) )
-        except:
-            sys.stderr.write( "Invalid Input Line: " + line )
-
-    return PointsMap
+    cur = g.db.execute(
+        'select serverName, lon, lat from servers order by id desc')
+    for row in cur.fetchall():
+        flash( row )
+        PointsMap[ row[0] ] = ( row[1], row[2] )
 
 def plotDiagramFromLattice( ax, voronoiLattice, map ):
     voronoiPolygons = {}
@@ -91,7 +112,8 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
 
 @app.route( '/voronoi', methods=[ 'GET', 'POST' ] )
 def voronoi():
-    PointsMap = readGeolistFromFile()
+
+    PointsMap = readGeolistFromDatabase()
 
     # Many server sites map to the same latitude and longitudes
     # Lets merge the duplicates
@@ -162,10 +184,47 @@ def voronoi():
 def image():
     return send_from_directory( CWD, 'voronoi-py.png' )
 
-@app.route('/', methods=['GET'])
+@app.route('/')
+def show_entries():
+    cur = g.db.execute('select serverName, serverAdd from servers order by id desc')
+    entries = [dict(serverName=row[0], serverAdd=row[1]) for row in cur.fetchall()]
+    return render_template('show_entries.html', entries=entries)
+
+@app.route('/add', methods=['POST'])
+def add_entry():
+
+    if not session.get('logged_in'):
+        abort(401)
+    g.db.execute('insert into servers (serverName, serverAdd) values (?, ?)',
+                 [request.form['serverName'], request.form['serverAdd']])
+    g.db.commit()
+    flash('New server was successfully added')
+    return redirect(url_for('show_entries'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        if request.form['username'] != app.config['USERNAME']:
+            error = 'Invalid username'
+        elif request.form['password'] != app.config['PASSWORD']:
+            error = 'Invalid password'
+        else:
+            session['logged_in'] = True
+            flash('You were logged in')
+            return redirect(url_for('show_entries'))
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    flash('You were logged out')
+    return redirect(url_for('show_entries'))
+
+'''@app.route('/', methods=['GET'])
 def index():
     
-    return '''
+    return
     <!doctype html>
     <title>Generate Voronoi Plot</title>
     <h1><center>Plot Voronoi Diagram</center></h1>
@@ -174,7 +233,7 @@ def index():
         <input type=submit value="Plot Defaults">
     </form>
     </center>
-    '''
 
+'''
 if __name__ == '__main__':
     app.run( debug=True )
