@@ -51,44 +51,14 @@ def before_request():
 def teardown_request(exception):
     g.db.close()
 
-def mergeDuplicates( PointsMap ):
-
-    uniquePointsMap = {}
-    blackList = frozenset( [ ] )
-    for name, coordinates in PointsMap.items():
-        # Checking if we blacklisted this name before
-        if name in blackList:
-            continue
-
-        finalName = name
-
-        for name1, coordinates1 in PointsMap.items():
-            if name == name1:
-                continue
-            if coordinates[0] == coordinates1[0] and \
-            coordinates[1] == coordinates1[1]:
-                # Add this name to blacklist so that
-                # we don't consider it again
-                blackList = blackList.union( [ name1 ] )
-                finalName = finalName + ", " + name1
-
-        uniquePointsMap[ finalName ] = coordinates
-
-    return uniquePointsMap
-
-
 def readGeolistFromDatabase():
     PointsMap={}
-    lat = []
-    lon = []
-    # List of all server names
-    serverName = []
-
     cur = g.db.execute(
         'select serverName, lon, lat from servers order by id desc')
     for row in cur.fetchall():
-        flash( row )
         PointsMap[ row[0] ] = ( row[1], row[2] )
+        print row[0]
+    return PointsMap
 
 def plotDiagramFromLattice( ax, voronoiLattice, map ):
     voronoiPolygons = {}
@@ -114,10 +84,7 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
 def voronoi():
 
     PointsMap = readGeolistFromDatabase()
-
-    # Many server sites map to the same latitude and longitudes
-    # Lets merge the duplicates
-    #PointsMap = mergeDuplicates( PointsMap )
+    print PointsMap
 
     # Method provided by py_geo_voronoi, returns a dictionary
     # of dictionaries, each sub-dictionary carrying information 
@@ -129,7 +96,7 @@ def voronoi():
         PointsMap, BoundingBox="W", PlotMap=False )
 
     numVoronoiCells = len( voronoiLattice.keys() )
-    
+    print numVoronoiCells
     serverNames = []
     serialNum = []
     lat = []
@@ -219,6 +186,23 @@ def add_entry():
     flash('New server was successfully added')
     return redirect(url_for('show_entries'))
 
+@app.route('/delete', methods=['POST'])
+def delete_entry():
+    cur = g.db.execute('select serverName, serverAdd from servers order by id desc')
+    entries = [dict(serverName=row[0], serverAdd=row[1]) for row in cur.fetchall()]
+
+    for entry in entries:
+        name = entry[ 'serverName' ]
+        if name in request.form:
+            print name
+            sql = 'delete from servers where serverName="%s"' % name
+            print sql
+            g.db.execute( sql )
+            g.db.commit()
+
+    flash('Server entry was successfully deleted')
+    return redirect(url_for('show_entries'))
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     error = None
@@ -239,19 +223,5 @@ def logout():
     flash('You were logged out')
     return redirect(url_for('show_entries'))
 
-'''@app.route('/', methods=['GET'])
-def index():
-    
-    return
-    <!doctype html>
-    <title>Generate Voronoi Plot</title>
-    <h1><center>Plot Voronoi Diagram</center></h1>
-    <center>
-    <form action="/voronoi" method=post enctype=multipart/form-data>
-        <input type=submit value="Plot Defaults">
-    </form>
-    </center>
-
-'''
 if __name__ == '__main__':
     app.run( debug=True )
