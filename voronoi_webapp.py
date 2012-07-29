@@ -14,6 +14,8 @@ from matplotlib.patches import Polygon
 import matplotlib.nxutils as nx
 
 import sqlite3
+import time
+from cidrize import cidrize
 
 # configuration
 DATABASE = '/tmp/serverlist.db'
@@ -30,18 +32,44 @@ app.config.from_object(__name__)
 def connect_db():
     return sqlite3.connect(app.config['DATABASE'])
 
+def readPointsFromFile():
+    f = open( "location_duplicates_merged", "r" )
+    PointsMapMerged = {}
+    for line in f.readlines():
+        info = line.split( '(' )
+        complexName = info[0]
+        loc = info[1].split( ',' )
+        lon = loc[0]
+        lat = loc[1].strip()[:-1]
+        PointsMapMerged[ complexName ] = ( lon, lat )
+    f.close()
+    return PointsMapMerged
+
 def init_db():
+    
+    # Getting all servers names and locations from file
+    PointsMapMerged = readPointsFromFile()
     with closing(connect_db()) as db:
         with app.open_resource('schema.sql') as f:
             db.cursor().executescript(f.read())
         db.commit()
-        f = open( "geolist_new", "r" )
-        for line in f.readlines():
-            info = line.split()
-            db.execute('insert into servers (serverName, lon, lat) values (?, ?, ?)', [info[0], info[1], info[2]])
+
+        # Populating the database with server names and locations
+        for complexName, locTuple in PointsMapMerged.iteritems():
+            db.execute('insert into servers (serverName, lon, lat) values (?, ?, ?)', [complexName, locTuple[0], locTuple[1]])
             db.commit()
 
-init_db()
+# For later use: When separating the merged server entries
+def generatePointsMapForDisplay( PointsMap ):
+    index = 0
+    simplePointsMap = {}
+    for names, locTuple in PointsMap.iteritems():
+        nameList = names.split( ',' )
+        for name in nameList:
+            simplePointsMap[ name ] = [ index, locTuple ]
+            index += 1
+
+    return simplePointsMap
 
 @app.before_request
 def before_request():
@@ -57,7 +85,6 @@ def readGeolistFromDatabase():
         'select serverName, lon, lat from servers order by id desc')
     for row in cur.fetchall():
         PointsMap[ row[0] ] = ( row[1], row[2] )
-        print row[0]
     return PointsMap
 
 def plotDiagramFromLattice( ax, voronoiLattice, map ):
@@ -80,11 +107,46 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
     
     return voronoiPolygons
 
+def getNetworkLocations( map ):
+
+    f = open( "GeoIPCountryWhois.csv", "r" )
+    networkLatLon = {}
+
+    # Actual Number is 160223 but that should take approximately
+    # 5 hours to finish, hence a smaller number
+    #for i in range( 160223 ):
+    for i in range( 10 ):
+        try:
+            whois = f.readline().split(",")
+        except EOFError:
+            break
+        networkFromIP = whois[0].strip( '"' )
+        networkToIP = whois[1].strip( '"' )
+
+        if networkFromIP == networkToIP:
+            continue
+
+        ip_range = str( networkFromIP ) + "-" + str( networkToIP )
+
+        cidr_ip = cidrize( ip_range )
+
+        gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
+                            pygeoip.STANDARD )
+        try:
+            gir = gi.record_by_addr( networkFromIP )
+        except pygeoip.GeoIPError:
+            print 'Error in:', networkFromIP
+        if gir != None:
+            x,y = map( gir[ 'longitude' ], gir[ 'latitude' ] )
+            networkLatLon[ i ] = { 'xCoord': x, 'yCoord': y, 'cidr': cidr_ip }
+
+    f.close()
+    return networkLatLon
+
 @app.route( '/voronoi', methods=[ 'GET', 'POST' ] )
 def voronoi():
 
     PointsMap = readGeolistFromDatabase()
-    print PointsMap
 
     # Method provided by py_geo_voronoi, returns a dictionary
     # of dictionaries, each sub-dictionary carrying information 
@@ -96,7 +158,7 @@ def voronoi():
         PointsMap, BoundingBox="W", PlotMap=False )
 
     numVoronoiCells = len( voronoiLattice.keys() )
-    print numVoronoiCells
+
     serverNames = []
     serialNum = []
     lat = []
@@ -138,6 +200,32 @@ def voronoi():
 
     plt.title( 'Server Locations Across the Globe' )
     plt.savefig( 'voronoi-py.png' )
+
+    now = time.time()
+    # Processing networks from Whois database
+    # and getting each network's lat, long
+    # Also get the cidr notation
+    networkLatLon = getNetworkLocations( map )
+
+    print 'Time taken to get CIDR info for 10 entries ' + \
+        str( time.time() - now )
+
+    histogramData = {}
+    histogramData = histogramData.fromkeys( 
+        range( 0, len( serverNames ) ), 0 )
+ 
+    pdnsFile = open( "pdns-config", "w" )
+
+    for sNo, netDetail in networkLatLon.iteritems():
+        net = np.array( [ [ netDetail[ 'xCoord' ], netDetail[ 'yCoord' ] ] ] )
+        for serialNo, polygon in voronoiPolygons.items():
+            if nx.points_inside_poly( net, polygon ):
+                histogramData[ serialNo ] += 1
+                for cidr_net in netDetail[ 'cidr' ]:
+                    pdnsFile.write( str( cidr_net ) + ' :' + 
+                                    '127.0.0.' + str( serialNo ) + "\n" )
+                break
+    pdnsFile.close()
 
     return '''
     <!doctype html>
@@ -194,9 +282,7 @@ def delete_entry():
     for entry in entries:
         name = entry[ 'serverName' ]
         if name in request.form:
-            print name
             sql = 'delete from servers where serverName="%s"' % name
-            print sql
             g.db.execute( sql )
             g.db.commit()
 
