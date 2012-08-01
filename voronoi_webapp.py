@@ -183,8 +183,7 @@ def voronoi():
     # Also get the cidr notation
     networkLatLon = getNetworkLocations( map )
 
-    print 'Time taken to get CIDR info for 10 entries ' + \
-        str( time.time() - now )
+    print 'Time taken to get CIDR info ' + str( time.time() - now )
 
     histogramData = {}
     histogramData = histogramData.fromkeys( 
