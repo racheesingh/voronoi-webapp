@@ -109,38 +109,14 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
 
 def getNetworkLocations( map ):
 
-    f = open( "GeoIPCountryWhois.csv", "r" )
     networkLatLon = {}
+    connection = sqlite3.connect( "/tmp/subnetlist.db" )
+    cursor = connection.cursor()
+    allCsvData = cursor.execute("select * from subnets")
+    for entry in allCsvData:
+        networkLatLon[ entry[0] ] = \
+            { 'xCoord': entry[3], 'yCoord': entry[2], 'cidr': entry[1] }
 
-    # Actual Number is 160223 but that should take approximately
-    # 5 hours to finish, hence a smaller number
-    #for i in range( 160223 ):
-    for i in range( 10 ):
-        try:
-            whois = f.readline().split(",")
-        except EOFError:
-            break
-        networkFromIP = whois[0].strip( '"' )
-        networkToIP = whois[1].strip( '"' )
-
-        if networkFromIP == networkToIP:
-            continue
-
-        ip_range = str( networkFromIP ) + "-" + str( networkToIP )
-
-        cidr_ip = cidrize( ip_range )
-
-        gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
-                            pygeoip.STANDARD )
-        try:
-            gir = gi.record_by_addr( networkFromIP )
-        except pygeoip.GeoIPError:
-            print 'Error in:', networkFromIP
-        if gir != None:
-            x,y = map( gir[ 'longitude' ], gir[ 'latitude' ] )
-            networkLatLon[ i ] = { 'xCoord': x, 'yCoord': y, 'cidr': cidr_ip }
-
-    f.close()
     return networkLatLon
 
 @app.route( '/voronoi', methods=[ 'GET', 'POST' ] )
@@ -221,7 +197,10 @@ def voronoi():
         for serialNo, polygon in voronoiPolygons.items():
             if nx.points_inside_poly( net, polygon ):
                 histogramData[ serialNo ] += 1
-                for cidr_net in netDetail[ 'cidr' ]:
+                cidrs = netDetail[ 'cidr' ].split('\n')
+                for cidr_net in cidrs:
+                    if cidr_net == u'':
+                        continue
                     pdnsFile.write( str( cidr_net ) + ' :' + 
                                     '127.0.0.' + str( serialNo ) + "\n" )
                 break
