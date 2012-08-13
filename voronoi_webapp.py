@@ -79,7 +79,7 @@ def init_db():
         # Writing the mirror servers' information to a database serverlist.db
         query = 'insert into servers (serverName, lon, lat, serverAdd, priority, weight, port) values (?, ?, ?, ?, ?, ?, ?)'
         for complexName, locTuple in PointsMap.iteritems():
-            db.execute( , [ complexName, locTuple[0], locTuple[1], locTuple[2], defaultPriority, defaultWeight, defaultPort ])
+            db.execute( query, [ complexName, locTuple[0], locTuple[1], locTuple[2], defaultPriority, defaultWeight, defaultPort ])
             db.commit()
 
 # For later use: When separating the merged server entries
