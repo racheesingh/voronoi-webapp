@@ -10,6 +10,7 @@ Here are the list of things you need to install to get this application running:
 
 ## How to Run
 Prior to running the application, go to the interactive Python shell and type:
+      	 
       	 $ import voronoi_webapp.py
       	 $ voronoi_webapp.init_db()
 
