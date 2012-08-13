@@ -24,7 +24,7 @@ And check the results on http://127.0.0.1:5000/ in your web browser.
 
 ## Credits
 * Thanks to [py_geo_voronoi](https://github.com/Softbass/py_geo_voronoi) for their API!
-* Thanks to rice.net for the Perl script I used to convert IP address ranges to CIDR notation. [Here](ftp://ftp.ripe.net/ripe/stats/issued/range2cidr.pl) is the full script.
+* Thanks to rice.net for the Perl script I used to convert IP address ranges to CIDR notation. Here [ftp://ftp.ripe.net/ripe/stats/issued/range2cidr.pl)] is the full script.
 
 ## About
 This web application uses [Flask](http://flask.pocoo.org/) web development framework. The applications reads a file containing server locations and names and populates an SQL database with those details. It also allows for adding more server locations and removing any that might not be needed. It plots a Voronoi diagram of the servers sites on a World map. Along with plotting the Voronoi diagram it also generates PowerDNS config files for a geo-backend.
