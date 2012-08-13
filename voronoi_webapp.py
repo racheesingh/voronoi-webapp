@@ -66,7 +66,10 @@ def init_db():
     # Getting all servers names and locations from file
     #PointsMapMerged = readMergedPointsFromFile()
     PointsMap = readPointsFromFile()
-
+    defaultPriority = 10
+    defaultWeight = 10
+    defaultPort = 3128
+    
     # Executing sqlite queries to create database serverlist.db
     with closing(connect_db()) as db:
         with app.open_resource('schema.sql') as f:
@@ -74,8 +77,9 @@ def init_db():
         db.commit()
 
         # Writing the mirror servers' information to a database serverlist.db
+        query = 'insert into servers (serverName, lon, lat, serverAdd, priority, weight, port) values (?, ?, ?, ?, ?, ?, ?)'
         for complexName, locTuple in PointsMap.iteritems():
-            db.execute( 'insert into servers (serverName, lon, lat, serverAdd) values (?, ?, ?, ?)', [ complexName, locTuple[0], locTuple[1], locTuple[2] ])
+            db.execute( , [ complexName, locTuple[0], locTuple[1], locTuple[2], defaultPriority, defaultWeight, defaultPort ])
             db.commit()
 
 # For later use: When separating the merged server entries
@@ -354,11 +358,15 @@ def show_entries():
 
 @app.route('/add', methods=['POST'])
 def add_entry():
-    import pygeoip
+
     if not session.get('logged_in'):
         abort(401)
     reqServerName = request.form[ 'serverName' ]
     reqServerURL = request.form[ 'serverAdd' ]
+    priority = request.form[ 'priority' ]
+    weight = request.form[ 'weight' ]
+    port = request.form[ 'port' ]
+
     gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
                         pygeoip.STANDARD )
     gir = None
@@ -374,7 +382,9 @@ def add_entry():
 
     reqServerLon = gir[ 'longitude' ]
     reqServerLat = gir[ 'latitude' ]
-    g.db.execute('insert into servers (serverName, serverAdd, lon, lat) values (?, ?, ?, ?)', [reqServerName, reqServerURL, reqServerLon, reqServerLat])
+
+    query = 'insert into servers (serverName, serverAdd, lon, lat, priority, weight, port) values (?, ?, ?, ?, ?, ?, ?)'
+    g.db.execute( query, [reqServerName, reqServerURL, reqServerLon, reqServerLat, priority, weight, port])
     g.db.commit()
     flash('New server was successfully added')
     return redirect(url_for('show_entries'))
