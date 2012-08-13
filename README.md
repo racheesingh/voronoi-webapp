@@ -9,9 +9,9 @@ Here are the list of things you need to install to get this application running:
 * I have also used a library py_geo_voronoi. [Here] (https://github.com/Softbass/py_geo_voronoi) is the Github page for this project. I have included py_geo_voronoi's files within my repository. Thanks to the author for the API!
 
 ## How to Run
-Prior to running the application, go to the interactive Python shell  and type:
-            $ import voronoi_webapp.py
-      	    $ voronoi_webapp.init_db()
+Prior to running the application, go to the interactive Python shell and type:
+      	 $ import voronoi_webapp.py
+      	 $ voronoi_webapp.init_db()
 
 This is so that the init_db method in voronoi_webapp.py initializes the database that will be used. This has to be done only once. Running the init_db method re-initializes the database with the default server details. 
 
