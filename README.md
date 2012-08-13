@@ -5,19 +5,19 @@ Here are the list of things you need to install to get this application running:
 
 * Pygeoip: A Python API for querying MaxMind GeoIP databases. [Here] (http://code.google.com/p/pygeoip/wiki/Install) are the installation instructions.
 * numpy: A Python library for a variety of mathematical work. [Here] (http://docs.scipy.org/doc/numpy/user/install.html) are the installation instructions for numpy.
-* Matplotlib Toolkits: This toolkits provides many interesting APIs including Basemap which plots maps. This application is using the Basemap module for plotting the world map.
-* I have also used a library py_geo_voronoi. Here is the Github page for this project. I have included py_geo_voronoi's files within my repository. Thanks to the author for the API!
+* Matplotlib Toolkits: This toolkits provides many interesting APIs including Basemap which plots maps. This application is using the Basemap module for plotting the world map. [Here] (http://matplotlib.github.com/basemap/users/installing.html) are the installation instructions for matplotlib toolkit.
+* I have also used a library py_geo_voronoi. [Here] (https://github.com/Softbass/py_geo_voronoi) is the Github page for this project. I have included py_geo_voronoi's files within my repository. Thanks to the author for the API!
 
 ## How to Run
 Prior to running the application, go to the interactive Python shell  and type:
-      $ import voronoi_webapp.py
-      $ voronoi_webapp.init_db()
+            $ import voronoi_webapp.py
+      	    $ voronoi_webapp.init_db()
 
 This is so that the init_db method in voronoi_webapp.py initializes the database that will be used. This has to be done only once. Running the init_db method re-initializes the database with the default server details. 
 
 Now, run the command:
 
-   $ python2 voronoi_webapp.py
+        $ python2 voronoi_webapp.py
 
 And check the results on http://127.0.0.1:5000/ in your web browser.
 
