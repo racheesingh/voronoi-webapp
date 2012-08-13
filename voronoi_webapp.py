@@ -98,13 +98,21 @@ def before_request():
 def teardown_request(exception):
     g.db.close()
 
-def readGeolistFromDatabase():
+def readGeoListFromDatabase():
     PointsMap={}
     cur = g.db.execute(
         'select serverName, lon, lat from servers order by id desc')
     for row in cur.fetchall():
         PointsMap[ row[0] ] = ( row[1], row[2] )
     return PointsMap
+
+def readGeoListFromDatabaseForBIND():
+    serverNameAddr={}
+    cur = g.db.execute(
+        'select serverName, serverAdd from servers order by id desc')
+    for row in cur.fetchall():
+        serverNameAddr[ row[0] ] = row[1]
+    return serverNameAddr
 
 def mergeDuplicates( PointsMap ):
 
@@ -190,10 +198,34 @@ def mapMergedSitesToReal( voronoiSitesMergedNames ):
 
     return mapMergedSitesDict, simplePointsMap
 
+def generateBINDFile():
+    mirrorDict = readGeoListFromDatabaseForBIND( )
+
+    def processSiteName( name ):
+        name = name.split( '/' )[-1]
+        name = name.lower()
+        namelets = name.split( '_' )
+        firstPart = '_'.join( namelets[2:] )
+        finalName = '.'.join( [ firstPart, namelets[0], namelets[1] ] )
+        return finalName
+
+    f = open( "pdns-bind", "w" )
+    for info in mirrorDict.iteritems():
+        name = info[0]
+        urlStr = info[1]
+        urls = urlStr.split( ',' )
+        finalName = processSiteName( name )
+
+        for url in urls:
+            # The 10s and 3128 is hardcoded for this test
+            f.write( finalName + '\t\t' + 'SRV' + '\t' + '10' + '\t' 
+                     + '10' + '\t' + '3128' + '\t' + url[7:] + '.' + '\n' )
+    f.close()
+
 @app.route( '/voronoi', methods=[ 'GET', 'POST' ] )
 def voronoi():
 
-    PointsMap = readGeolistFromDatabase()
+    PointsMap = readGeoListFromDatabase()
 
     # Backing up the original for future use
     backupPointsMap = PointsMap
@@ -296,6 +328,9 @@ def voronoi():
                                     '127.0.0.' + str( chosenSerialNo ) + "\n" )
                 break
     pdnsFile.close()
+
+    # This method generates the BIND files
+    generateBINDFile()
 
     return '''
     <!doctype html>
