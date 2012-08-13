@@ -5,6 +5,8 @@ import os
 import numpy as np
 import pygeoip
 import socket
+import sqlite3
+import time
 
 # py_geo_voronoi: https://github.com/Softbass/py_geo_voronoi
 import voronoi_poly 
@@ -13,10 +15,6 @@ from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 import matplotlib.nxutils as nx
-
-import sqlite3
-import time
-from cidrize import cidrize
 
 # configuration
 DATABASE = 'serverlist.db'
