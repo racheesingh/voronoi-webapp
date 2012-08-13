@@ -4,6 +4,7 @@ from contextlib import closing
 import os
 import numpy as np
 import pygeoip
+import socket
 
 # py_geo_voronoi: https://github.com/Softbass/py_geo_voronoi
 import voronoi_poly 
@@ -18,7 +19,9 @@ import time
 from cidrize import cidrize
 
 # configuration
-DATABASE = '/tmp/serverlist.db'
+DATABASE = 'serverlist.db'
+DATABASE_SUBNETS = "subnetlist.db"
+#DATABASE_MERGED = 'serverlistmerged.db'
 DEBUG = True
 SECRET_KEY = 'development key'
 USERNAME = 'admin'
@@ -33,6 +36,19 @@ def connect_db():
     return sqlite3.connect(app.config['DATABASE'])
 
 def readPointsFromFile():
+    f = open( "location-with-url", "r" )
+    PointsMap = {}
+    for line in f.readlines():
+        info = line.split()
+        name = info[ 0 ]
+        lon = info[ 1 ]
+        lat = info[ 2 ]
+        urlStr = info[3]
+        PointsMap[ name ] = ( lon, lat, urlStr[1:] )
+    f.close()
+    return PointsMap
+    
+def readMergedPointsFromFile():
     f = open( "location_duplicates_merged", "r" )
     PointsMapMerged = {}
     for line in f.readlines():
@@ -48,19 +64,22 @@ def readPointsFromFile():
 def init_db():
     
     # Getting all servers names and locations from file
-    PointsMapMerged = readPointsFromFile()
+    #PointsMapMerged = readMergedPointsFromFile()
+    PointsMap = readPointsFromFile()
+
+    # Executing sqlite queries to create database serverlist.db
     with closing(connect_db()) as db:
         with app.open_resource('schema.sql') as f:
             db.cursor().executescript(f.read())
         db.commit()
 
-        # Populating the database with server names and locations
-        for complexName, locTuple in PointsMapMerged.iteritems():
-            db.execute('insert into servers (serverName, lon, lat) values (?, ?, ?)', [complexName, locTuple[0], locTuple[1]])
+        # Writing the mirror servers' information to a database serverlist.db
+        for complexName, locTuple in PointsMap.iteritems():
+            db.execute( 'insert into servers (serverName, lon, lat, serverAdd) values (?, ?, ?, ?)', [ complexName, locTuple[0], locTuple[1], locTuple[2] ])
             db.commit()
 
 # For later use: When separating the merged server entries
-def generatePointsMapForDisplay( PointsMap ):
+def generateSimplePointsMap( PointsMap ):
     index = 0
     simplePointsMap = {}
     for names, locTuple in PointsMap.iteritems():
@@ -87,8 +106,38 @@ def readGeolistFromDatabase():
         PointsMap[ row[0] ] = ( row[1], row[2] )
     return PointsMap
 
+def mergeDuplicates( PointsMap ):
+
+    uniquePointsMap = {}
+    blackList = frozenset( [ ] )
+    for name, coordinates in PointsMap.items():
+        # Checking if we blacklisted this name before
+        if name in blackList:
+            continue
+
+        finalName = name
+
+        for name1, coordinates1 in PointsMap.items():
+            if name == name1:
+                continue
+            if coordinates[0] == coordinates1[0] and \
+            coordinates[1] == coordinates1[1]:
+                # Add this name to blacklist so that
+                # we don't consider it again
+                blackList = blackList.union( [ name1 ] )
+                finalName = finalName + ", " + name1
+
+        uniquePointsMap[ finalName ] = coordinates
+
+    return uniquePointsMap
+
 def plotDiagramFromLattice( ax, voronoiLattice, map ):
+
+    # Has the form {serialNo: Polygon}
     voronoiPolygons = {}
+
+    # Has the form {serialNo: compoundName }
+    voronoiSitesMergedNames = {}
 
     # Plotting the Polygons returned by py_geo_voronoi
     N = len( voronoiLattice.items() )
@@ -96,6 +145,7 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
         data = voronoiLattice[ x ]
         serialNo = x
         polygon_data = data[ 'obj_polygon']
+        compoundName = data[ 'info' ]
         pointList = []
 
         for point in list( polygon_data.exterior.coords ):
@@ -104,13 +154,14 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
 
         ax.add_patch( Polygon( pointList, fill=0, edgecolor='black' ))
         voronoiPolygons[ serialNo ] = np.array( pointList )
+        voronoiSitesMergedNames[ serialNo ] = compoundName
     
-    return voronoiPolygons
+    return voronoiPolygons, voronoiSitesMergedNames
 
 def getNetworkLocations( map ):
 
     networkLatLon = {}
-    connection = sqlite3.connect( "/tmp/subnetlist.db" )
+    connection = sqlite3.connect( DATABASE_SUBNETS )
     cursor = connection.cursor()
     allCsvData = cursor.execute("select * from subnets")
     for entry in allCsvData:
@@ -119,10 +170,35 @@ def getNetworkLocations( map ):
 
     return networkLatLon
 
+def mapMergedSitesToReal( voronoiSitesMergedNames ):
+
+    # { serialNo : Name } form
+    simplePointsMap = {}
+
+    mapMergedSitesDict = {}
+    serialNoFinal = 0
+    for entry in voronoiSitesMergedNames.items():
+        serialNo = entry[0]
+        compoundName = entry[1]
+        names = compoundName.split( ',' )
+        listOfSerialNos = []
+        for name in names:
+            simplePointsMap[ serialNoFinal ] = name
+            serialNoFinal += 1
+            listOfSerialNos.append( serialNoFinal )
+        mapMergedSitesDict[ serialNo ] = listOfSerialNos
+
+    return mapMergedSitesDict, simplePointsMap
+
 @app.route( '/voronoi', methods=[ 'GET', 'POST' ] )
 def voronoi():
 
     PointsMap = readGeolistFromDatabase()
+
+    # Backing up the original for future use
+    backupPointsMap = PointsMap
+
+    PointsMap = mergeDuplicates( PointsMap )
 
     # Method provided by py_geo_voronoi, returns a dictionary
     # of dictionaries, each sub-dictionary carrying information 
@@ -172,10 +248,23 @@ def voronoi():
 
     ax = plt.gca()
     # Plotting the Polygons returned by py_geo_voronoi
-    voronoiPolygons = plotDiagramFromLattice( ax, voronoiLattice, map )
+    voronoiPolygons, voronoiSitesMergedNames = \
+        plotDiagramFromLattice( ax, voronoiLattice, map )
 
     plt.title( 'Server Locations Across the Globe' )
     plt.savefig( 'voronoi-py.png' )
+
+    # Getting a dictionary of form {serialNo: compoundName}
+    # These are approximately 67 entries
+    voronoiSitesMergedNames = {}
+    for serial, polygon in voronoiLattice.items():
+        voronoiSitesMergedNames[ serial ] = polygon[ 'info' ]
+
+    # Creating an map from the merged enntries to single server entries
+    mapMergedSitesDict, simplePointsMap = mapMergedSitesToReal( voronoiSitesMergedNames )
+
+    #print voronoiLattice
+    #print voronoiPolygons
 
     now = time.time()
     # Processing networks from Whois database
@@ -188,8 +277,9 @@ def voronoi():
     histogramData = {}
     histogramData = histogramData.fromkeys( 
         range( 0, len( serverNames ) ), 0 )
- 
+    
     pdnsFile = open( "pdns-config", "w" )
+    import random
 
     for sNo, netDetail in networkLatLon.iteritems():
         net = np.array( [ [ netDetail[ 'xCoord' ], netDetail[ 'yCoord' ] ] ] )
@@ -200,8 +290,10 @@ def voronoi():
                 for cidr_net in cidrs:
                     if cidr_net == u'':
                         continue
+                    possibleMirrors = mapMergedSitesDict[ serialNo ]
+                    chosenSerialNo = random.choice( possibleMirrors )
                     pdnsFile.write( str( cidr_net ) + ' :' + 
-                                    '127.0.0.' + str( serialNo ) + "\n" )
+                                    '127.0.0.' + str( chosenSerialNo ) + "\n" )
                 break
     pdnsFile.close()
 
@@ -213,6 +305,7 @@ def voronoi():
     <img src="voronoi-py.png" />
     </center>
     '''
+
 @app.route( '/voronoi-py.png' )
 def image():
     return send_from_directory( CWD, 'voronoi-py.png' )
@@ -221,6 +314,7 @@ def image():
 def show_entries():
     cur = g.db.execute('select serverName, serverAdd from servers order by id desc')
     entries = [dict(serverName=row[0], serverAdd=row[1]) for row in cur.fetchall()]
+    entries = sorted( entries, key=lambda k: k['serverName'] )
     return render_template('show_entries.html', entries=entries)
 
 @app.route('/add', methods=['POST'])
@@ -232,7 +326,6 @@ def add_entry():
     reqServerURL = request.form[ 'serverAdd' ]
     gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
                         pygeoip.STANDARD )
-    import socket
     gir = None
     try:
         gir = gi.record_by_name( reqServerURL )
@@ -244,7 +337,6 @@ def add_entry():
             return redirect(url_for('show_entries'))
     print reqServerURL, reqServerName
 
-    print gir
     reqServerLon = gir[ 'longitude' ]
     reqServerLat = gir[ 'latitude' ]
     g.db.execute('insert into servers (serverName, serverAdd, lon, lat) values (?, ?, ?, ?)', [reqServerName, reqServerURL, reqServerLon, reqServerLat])

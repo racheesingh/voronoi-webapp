@@ -7,7 +7,7 @@ from subprocess import Popen, PIPE
 import pygeoip
 from mpl_toolkits.basemap import Basemap
 
-DATABASE = '/tmp/subnetlist.db'
+DATABASE = 'subnetlist.db'
 
 app = Flask(__name__)
 app.config.from_object(__name__)
@@ -21,9 +21,6 @@ def init_db( ):
     cursor = connection.cursor()
     sqlFile = open( 'whois-schema.sql' )
 
-    #for line in sqlFile:
-    #    print 'line', line
-    #    cursor.execute( line )
     cursor.executescript( sqlFile.read() )
     connection.commit()
 
