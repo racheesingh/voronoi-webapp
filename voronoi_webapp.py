@@ -28,6 +28,8 @@ CWD = os.getcwd()
 
 app = Flask(__name__)
 app.config.from_object(__name__)
+records = ['cernvm_cdn', 'cernvm_cdn_host', 'cernvm_cvmfs2', 'cernvm_grid_ui_version', 'cernvm_organization_list', 'cernvm_repository_list', 'cernvm_repository_map', 'cmtprojectpath', 'cmtroot', 'cmtsite', 'cvsroot', 'exportvars', 'filecachesize', 'fileprotocol', 'fileserver', 'hepsoft_platform', 'hepsoft_version', 'httpproxy', 'localsite', 'mysiteroot', 'na49_level', 'notifyemail', 'platformlist', 'siteroot', 'vo_atlas_sw_dir', 'vo_cms_sw_dir']
+
 
 def connect_db():
     return sqlite3.connect(app.config['DATABASE'])
@@ -199,16 +201,16 @@ def mapMergedSitesToReal( voronoiSitesMergedNames ):
 
     return mapMergedSitesDict, simplePointsMap
 
+def processSiteName( name ):
+    name = name.split( '/' )[-1]
+    name = name.lower()
+    namelets = name.split( '_' )
+    firstPart = '_'.join( namelets[2:] )
+    finalName = '.'.join( [ firstPart, namelets[0], namelets[1] ] )
+    return finalName
+
 def generateBINDFile():
     mirrorDict = readGeoListFromDatabaseForBIND( )
-
-    def processSiteName( name ):
-        name = name.split( '/' )[-1]
-        name = name.lower()
-        namelets = name.split( '_' )
-        firstPart = '_'.join( namelets[2:] )
-        finalName = '.'.join( [ firstPart, namelets[0], namelets[1] ] )
-        return finalName
 
     f = open( "pdns-bind", "w" )
     for info in mirrorDict.iteritems():
@@ -223,6 +225,23 @@ def generateBINDFile():
                      + '10' + '\t' + '3128' + '\t' + url[7:] + '.' + '\n' )
     f.close()
 
+def generateGeoRRMaps( PointsMap ):
+    # To Fix: Have not yet added default entry at number 0
+    ORIGIN = "sites.cdn.cernvm.org."
+    os.system( "mkdir geo-rr-maps" )
+    for record in records:
+        RECORD = record
+        fileName = "geo-rr-maps/" + record
+        f = open( fileName, "w" )
+        f.write( "$RECORD" + ' ' + RECORD + "\n" )
+        f.write( "$ORIGIN" + ' ' + ORIGIN + "\n" )
+        for server in PointsMap.iteritems():
+            serialNo = server[ 0 ]
+            complexName = server[ 1 ]
+            simpleName = processSiteName( complexName )
+            f.write( str( serialNo ) + '  ' + RECORD + '.' + simpleName + '\n' )
+        f.close()
+        
 @app.route( '/voronoi', methods=[ 'GET', 'POST' ] )
 def voronoi():
 
@@ -332,6 +351,9 @@ def voronoi():
 
     # This method generates the BIND files
     generateBINDFile()
+
+    # Generate geo-rr-maps directory for all records
+    generateGeoRRMaps( simplePointsMap )
 
     return '''
     <!doctype html>
