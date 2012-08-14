@@ -22,6 +22,10 @@ Now, run the command:
 
 And check the results on http://127.0.0.1:5000/ in your web browser.
 
+For being able to add/remove servers, you are required to log in. Here are the login details:
+    username: admin
+    password: default
+
 ## Credits
 * Thanks to [py_geo_voronoi](https://github.com/Softbass/py_geo_voronoi) for their API!
 * Thanks to rice.net for the Perl script I used to convert IP address ranges to CIDR notation. Here [ftp://ftp.ripe.net/ripe/stats/issued/range2cidr.pl)] is the full script.

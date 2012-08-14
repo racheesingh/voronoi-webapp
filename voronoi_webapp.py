@@ -19,7 +19,6 @@ import matplotlib.nxutils as nx
 # configuration
 DATABASE = 'serverlist.db'
 DATABASE_SUBNETS = "subnetlist.db"
-#DATABASE_MERGED = 'serverlistmerged.db'
 DEBUG = True
 SECRET_KEY = 'development key'
 USERNAME = 'admin'
