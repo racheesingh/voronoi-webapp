@@ -1,7 +1,7 @@
 ## Dependencies
 Here are the list of things you need to install to get this application running:
 
-* Flask: A micro web development framework. The installation instructions are [here] (http://flask.pocoo.org/docs/installation/).
+* *Flask*: A micro web development framework. The installation instructions are [here] (http://flask.pocoo.org/docs/installation/).
 
 * Pygeoip: A Python API for querying MaxMind GeoIP databases. [Here] (http://code.google.com/p/pygeoip/wiki/Install) are the installation instructions.
 * numpy: A Python library for a variety of mathematical work. [Here] (http://docs.scipy.org/doc/numpy/user/install.html) are the installation instructions for numpy.
