@@ -228,10 +228,13 @@ def generateBINDFile():
 def generateGeoRRMaps( PointsMap ):
     # To Fix: Have not yet added default entry at number 0
     ORIGIN = "sites.cdn.cernvm.org."
-    os.system( "mkdir geo-rr-maps" )
+
+    # This is only for now, records is meant to contain only cvmfs
+    records = [ 'cvmfs' ]
+
     for record in records:
         RECORD = record
-        fileName = "geo-rr-maps/" + record
+        fileName = record
         f = open( fileName, "w" )
         f.write( "$RECORD" + ' ' + RECORD + "\n" )
         f.write( "$ORIGIN" + ' ' + ORIGIN + "\n" )
