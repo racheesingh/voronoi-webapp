@@ -7,6 +7,7 @@ import pygeoip
 import socket
 import sqlite3
 import time
+import random
 
 # py_geo_voronoi: https://github.com/Softbass/py_geo_voronoi
 import voronoi_poly 
@@ -30,6 +31,8 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 
 records = ['cernvm_cdn', 'cernvm_cdn_host', 'cernvm_cvmfs2', 'cernvm_grid_ui_version', 'cernvm_organization_list', 'cernvm_repository_list', 'cernvm_repository_map', 'cmtprojectpath', 'cmtroot', 'cmtsite', 'cvsroot', 'exportvars', 'filecachesize', 'fileprotocol', 'fileserver', 'hepsoft_platform', 'hepsoft_version', 'httpproxy', 'localsite', 'mysiteroot', 'na49_level', 'notifyemail', 'platformlist', 'siteroot', 'vo_atlas_sw_dir', 'vo_cms_sw_dir']
+
+defaultServerAddr = 'cvmfs.pool.cdn.cernvm.org'
 
 def connect_db():
     return sqlite3.connect(app.config['DATABASE'])
@@ -152,7 +155,7 @@ def plotDiagramFromLattice( ax, voronoiLattice, map ):
 
     # Plotting the Polygons returned by py_geo_voronoi
     N = len( voronoiLattice.items() )
-    for x in range( N ):
+    for x in range( 1, N+1 ):
         data = voronoiLattice[ x ]
         serialNo = x
         polygon_data = data[ 'obj_polygon']
@@ -187,7 +190,7 @@ def mapMergedSitesToReal( voronoiSitesMergedNames ):
     simplePointsMap = {}
 
     mapMergedSitesDict = {}
-    serialNoFinal = 0
+    serialNoFinal = 1
     for entry in voronoiSitesMergedNames.items():
         serialNo = entry[0]
         compoundName = entry[1]
@@ -238,6 +241,7 @@ def generateGeoRRMaps( PointsMap ):
         f = open( fileName, "w" )
         f.write( "$RECORD" + ' ' + RECORD + "\n" )
         f.write( "$ORIGIN" + ' ' + ORIGIN + "\n" )
+        f.write( str(0) + '  ' + defaultServerAddr + '.' + '\n' )
         for server in PointsMap.iteritems():
             serialNo = server[ 0 ]
             complexName = server[ 1 ]
@@ -264,6 +268,12 @@ def voronoi():
     voronoiLattice = voronoi_poly.VoronoiPolygons(
         PointsMap, BoundingBox="W", PlotMap=False )
 
+    voronoiLatticeKeysUpdated = {}
+    for item in voronoiLattice.iteritems():
+        voronoiLatticeKeysUpdated[ item[0] + 1 ] = item[1]
+
+    voronoiLattice = voronoiLatticeKeysUpdated
+
     numVoronoiCells = len( voronoiLattice.keys() )
 
     serverNames = []
@@ -271,7 +281,7 @@ def voronoi():
     lat = []
     lon = []
     # Getting server names and lat, lon in order
-    for x in range( numVoronoiCells ):
+    for x in range( 1, numVoronoiCells+1 ):
         serialNum.append( x )
         serverNames.append( voronoiLattice[ x ][ 'info' ] )
         lat.append( voronoiLattice[ x ][ 'coordinate' ][ 1 ] )
@@ -318,9 +328,6 @@ def voronoi():
     # Creating an map from the merged enntries to single server entries
     mapMergedSitesDict, simplePointsMap = mapMergedSitesToReal( voronoiSitesMergedNames )
 
-    #print voronoiLattice
-    #print voronoiPolygons
-
     now = time.time()
     # Processing networks from Whois database
     # and getting each network's lat, long
@@ -331,10 +338,9 @@ def voronoi():
 
     histogramData = {}
     histogramData = histogramData.fromkeys( 
-        range( 0, len( serverNames ) ), 0 )
+        range( 1, len( serverNames )+1 ), 0 )
     
     pdnsFile = open( "pdns-config", "w" )
-    import random
 
     for sNo, netDetail in networkLatLon.iteritems():
         net = np.array( [ [ netDetail[ 'xCoord' ], netDetail[ 'yCoord' ] ] ] )
@@ -384,7 +390,7 @@ def add_default_server():
     if not session.get('logged_in'):
         abort(401)
         
-    serverAddr = request.form[ 'defaultServer' ]
+    defaultServerAddr = request.form[ 'defaultServer' ]
     flash( 'Default Server was successfully added' )
     return redirect(url_for('show_entries'))
 
