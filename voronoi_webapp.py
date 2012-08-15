@@ -28,8 +28,8 @@ CWD = os.getcwd()
 
 app = Flask(__name__)
 app.config.from_object(__name__)
-records = ['cernvm_cdn', 'cernvm_cdn_host', 'cernvm_cvmfs2', 'cernvm_grid_ui_version', 'cernvm_organization_list', 'cernvm_repository_list', 'cernvm_repository_map', 'cmtprojectpath', 'cmtroot', 'cmtsite', 'cvsroot', 'exportvars', 'filecachesize', 'fileprotocol', 'fileserver', 'hepsoft_platform', 'hepsoft_version', 'httpproxy', 'localsite', 'mysiteroot', 'na49_level', 'notifyemail', 'platformlist', 'siteroot', 'vo_atlas_sw_dir', 'vo_cms_sw_dir']
 
+records = ['cernvm_cdn', 'cernvm_cdn_host', 'cernvm_cvmfs2', 'cernvm_grid_ui_version', 'cernvm_organization_list', 'cernvm_repository_list', 'cernvm_repository_map', 'cmtprojectpath', 'cmtroot', 'cmtsite', 'cvsroot', 'exportvars', 'filecachesize', 'fileprotocol', 'fileserver', 'hepsoft_platform', 'hepsoft_version', 'httpproxy', 'localsite', 'mysiteroot', 'na49_level', 'notifyemail', 'platformlist', 'siteroot', 'vo_atlas_sw_dir', 'vo_cms_sw_dir']
 
 def connect_db():
     return sqlite3.connect(app.config['DATABASE'])
@@ -377,6 +377,16 @@ def show_entries():
     entries = [dict(serverName=row[0], serverAdd=row[1]) for row in cur.fetchall()]
     entries = sorted( entries, key=lambda k: k['serverName'] )
     return render_template('show_entries.html', entries=entries)
+
+@app.route('/add_default', methods=['POST'])
+def add_default_server():
+    
+    if not session.get('logged_in'):
+        abort(401)
+        
+    serverAddr = request.form[ 'defaultServer' ]
+    flash( 'Default Server was successfully added' )
+    return redirect(url_for('show_entries'))
 
 @app.route('/add', methods=['POST'])
 def add_entry():
