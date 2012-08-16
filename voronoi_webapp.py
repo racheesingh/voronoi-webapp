@@ -115,9 +115,9 @@ def readGeoListFromDatabase():
 def readGeoListFromDatabaseForBIND():
     serverNameAddr={}
     cur = g.db.execute(
-        'select serverName, serverAdd from servers order by id desc')
+        'select serverName, serverAdd, priority, weight, port from servers order by id desc')
     for row in cur.fetchall():
-        serverNameAddr[ row[0] ] = row[1]
+        serverNameAddr[ row[0] ] = ( row[1], row[2], row[3], row[4] )
     return serverNameAddr
 
 def mergeDuplicates( PointsMap ):
@@ -218,21 +218,22 @@ def generateBINDFile():
     f = open( "pdns-bind", "w" )
     for info in mirrorDict.iteritems():
         name = info[0]
-        urlStr = info[1]
+        urlStr = info[1][0]
+        priority = info[1][1]
+        weight = info[1][2]
+        port = info[1][3]
         urls = urlStr.split( ',' )
         finalName = processSiteName( name )
-
         for url in urls:
-            # The 10s and 3128 is hardcoded for this test
-            f.write( finalName + '\t\t' + 'SRV' + '\t' + '10' + '\t' 
-                     + '10' + '\t' + '3128' + '\t' + url[7:] + '.' + '\n' )
+            f.write( finalName + '\t\t' + 'SRV' + '\t' + str(priority) + '\t' 
+                     + str(weight) + '\t' + str(port) + '\t' + url + '.' + '\n' )
     f.close()
 
 def generateGeoRRMaps( PointsMap ):
-    # To Fix: Have not yet added default entry at number 0
+
     ORIGIN = "sites.cdn.cernvm.org."
 
-    # This is only for now, records is meant to contain only cvmfs
+    # For now, records is meant to contain only cvmfs
     records = [ 'cvmfs' ]
 
     for record in records:
@@ -390,7 +391,11 @@ def add_default_server():
     if not session.get('logged_in'):
         abort(401)
         
-    defaultServerAddr = request.form[ 'defaultServer' ]
+    global defaultServerAddr
+
+    if request.form[ 'defaultServer' ] != '':
+        defaultServerAddr = request.form[ 'defaultServer' ]
+
     flash( 'Default Server was successfully added' )
     return redirect(url_for('show_entries'))
 
@@ -400,10 +405,15 @@ def add_entry():
     if not session.get('logged_in'):
         abort(401)
     reqServerName = request.form[ 'serverName' ]
+    print reqServerName
     reqServerURL = request.form[ 'serverAdd' ]
+    print reqServerURL
     priority = request.form[ 'priority' ]
+    print priority
     weight = request.form[ 'weight' ]
+    print weight
     port = request.form[ 'port' ]
+    print port
 
     gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
                         pygeoip.STANDARD )
