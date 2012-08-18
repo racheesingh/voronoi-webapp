@@ -213,9 +213,56 @@ def processSiteName( name ):
     return finalName
 
 def generateBINDFile():
-    mirrorDict = readGeoListFromDatabaseForBIND( )
+
+    SERIAL = 2012071602
+    REFRESH = 14400
+    RETRY = 900
+    EXPIRE = 172800
+    MINIMUM = 900
 
     f = open( "pdns-bind", "w" )
+    fConf = open( "pdns.geo", "r" )
+    configData = fConf.read()
+    configData = configData.split( '\n' )
+
+    configDict = {}
+    for data in configData:
+        data = data.split( '=' )
+        configDict[ data[0] ] = data[1]
+
+    # Modifying the format of geo-soa-values record
+    soaVal = configDict[ 'geo-soa-values' ]
+    soaVal = soaVal.split( ',' )
+    soaVal[0] = soaVal[0] + '.'
+    soaVal[1] = soaVal[1] +  '.'
+    configDict[ 'geo-soa-values' ] = ' '.join( soaVal )
+
+    f.write( "$ORIGIN ." + '\n' )
+    f.write( "$TTL" + '  ' + configDict[ 'geo-ttl' ] + '\n' )
+    f.write( configDict[ 'geo-zone' ][4:] + '\t\t' + 'IN' + ' ' + 'SOA' + ' ' +
+             configDict[ 'geo-soa-values' ] +' (' + '\n' )
+
+    f.write( '\t\t\t\t\t' + str( SERIAL ) + '\n' )
+    f.write( '\t\t\t\t\t' + str( REFRESH ) + '\n' )
+    f.write( '\t\t\t\t\t' + str( RETRY ) + '\n' )
+    f.write( '\t\t\t\t\t' + str( EXPIRE ) + '\n' )
+    f.write( '\t\t\t\t\t' + str( MINIMUM ) + '\n' )
+    f.write( '\t\t\t\t\t' + ')' + '\n\n' )
+
+    nsVal = configDict[ 'geo-ns-records' ]
+    nsVal = nsVal.split( ',' )
+    nsVal[0] = nsVal[0] + '.'
+    nsVal[1] = nsVal[1] + '.'
+    configDict[ 'geo-ns-records' ] = ' '.join( nsVal )
+
+    f.write( "$TTL" + '  ' + configDict[ 'geo-ns-ttl' ] + '\n' )
+    f.write( '\t\t\t\t' + 'NS' + '\t' + 
+             configDict[ 'geo-ns-records' ] + '\n' )
+
+    f.write( '\n\n' )
+
+    mirrorDict = readGeoListFromDatabaseForBIND( )
+
     for info in mirrorDict.iteritems():
         name = info[0]
         urlStr = info[1][0]
@@ -405,15 +452,10 @@ def add_entry():
     if not session.get('logged_in'):
         abort(401)
     reqServerName = request.form[ 'serverName' ]
-    print reqServerName
     reqServerURL = request.form[ 'serverAdd' ]
-    print reqServerURL
     priority = request.form[ 'priority' ]
-    print priority
     weight = request.form[ 'weight' ]
-    print weight
     port = request.form[ 'port' ]
-    print port
 
     gi = pygeoip.GeoIP( "/usr/local/share/GeoIP/GeoIPCity.dat",
                         pygeoip.STANDARD )
@@ -426,7 +468,6 @@ def add_entry():
         pass
     if gir == None:
             return redirect(url_for('show_entries'))
-    print reqServerURL, reqServerName
 
     reqServerLon = gir[ 'longitude' ]
     reqServerLat = gir[ 'latitude' ]

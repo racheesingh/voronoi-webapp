@@ -1,3 +1,17 @@
+$ORIGIN .
+$TTL  600
+cdn.cernvm.org		IN SOA ns0.cdn.cernvm.org. jblomer.cern.ch. (
+					2012071602
+					14400
+					900
+					172800
+					900
+					)
+
+$TTL  600
+				NS	ns0.cdn.cernvm.org. ns1.cdn.cernvm.org.
+
+
 tamu.t3.us		SRV	10	10	3128	http://hurr.tamu.edu.
 sgrid_ralpp.t2.uk		SRV	10	10	3128	http://hepsquid01.pp.rl.ac.uk.
 sgrid_ralpp.t2.uk		SRV	10	10	3128	http://hepsquid02.pp.rl.ac.uk.
